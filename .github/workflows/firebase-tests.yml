@@ -1,0 +1,196 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Firebase Tests CI
+
+on:
+  push:
+    branches: [ "main", "CI-Workflow" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - run: npm ci
+    
+    - name: Install Firebase CLI
+      run: npm install -g firebase-tools
+    
+    - name: Create Firebase project config for emulators
+      run: |
+        # Create a basic firebase.json if one doesn't exist
+        if [ ! -f firebase.json ]; then
+          echo '{
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "storage": {
+              "rules": "storage.rules"
+            },
+            "emulators": {
+              "auth": {
+                "port": 9099,
+                "host": "127.0.0.1"
+              },
+              "firestore": {
+                "port": 8080,
+                "host": "127.0.0.1"
+              },
+              "storage": {
+                "port": 9199,
+                "host": "127.0.0.1"
+              },
+              "ui": {
+                "enabled": true,
+                "port": 4000
+              }
+            }
+          }' > firebase.json
+          echo "Created firebase.json for emulators"
+        fi
+        
+        # Create basic firestore rules
+        echo 'rules_version = "2";
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /{document=**} {
+              allow read, write: if true;
+            }
+          }
+        }' > firestore.rules
+        echo "Created firestore.rules"
+        
+        # Create basic storage rules
+        echo 'rules_version = "2";
+        service firebase.storage {
+          match /b/{bucket}/o {
+            match /{allPaths=**} {
+              allow read, write: if true;
+            }
+          }
+        }' > storage.rules
+        echo "Created storage.rules"
+        
+        # Create .firebaserc with project ID
+        echo '{
+          "projects": {
+            "default": "demo-project"
+          }
+        }' > .firebaserc
+        echo "Created .firebaserc with default project"
+    
+    - name: Create test service account key
+      run: |
+        echo '{
+          "type": "service_account",
+          "project_id": "demo-project",
+          "private_key_id": "demo-key-id",
+          "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDJ5pM3yuFLQKr6\n6Ht9YuVvjGBr0OnmZv8Wwf1Go+lr1wH1aGGFuEBPQlFVXvrNmQXRPNKgPuI+HFaP\n4wuS4zJnCYPYLgLu5IRBM8tBGEVMVzLLn7BqeYI12FfKNHq7h7GWZJtmXOJWoXLq\nRc1JA6G0ZN0pYnFnp4qT1UZBOVVdcZJj/iDKj7HZS0tTbwxdLiCOYs8myRiE1jmY\nyPWGLRUX7JqOlLgb/W6HNyqOXx97b+nSIsUBrvwr6MsExzk3GaZNL6+cZ8ZdEXge\nRXlDnH2rXKQWj4pQR1TO8VcGZbxJKBmhK+H8GiU1RI2Ow0TSAxza+4twMPK3eQXL\nf3QI+iVxAgMBAAECggEAKPSJoy6Duj9MKJVZiTqGlk8/tjC6RbIBmCXGdwRPMZB2\nV3RBiLKwO8F7HoS5eVXzuIIEpUc/XbiNBFbxWwAh1sBl8JQV9SstxO5UfgDaGQQ+\n6c5l0f28vPrNIcTG+9a/54g8M+M+euD0wK3hZhMWjWrJXK9YiPF4tT47fqt/D01p\nHG0BQvk1Lv4u8l+BuDsGRjprvXtPfK7RKlbL1oGQXZl1yLDPkYXd5cFQY042rLSu\nHnQjm+1fHdptbUD/g7qVl1GwoK7xJAl48gRUvZ50/EcqGwB1g0ql1HpwWL8z5mZv\nmxUPAeSmnVfHkPPWJZf/fQM0jg7UGRbEZcpJhXeqoQKBgQD0PsEitgNWEy3P8V4i\nG8N3U3B9aQlZVwEfjRlrEFx3saMBghW4jG4W+u7DfVJrUJqzUjNnOVHd+uRXPq+q\nMcGnMIPdmuxJ0hJpuU5z2q9QpcklTr6qecGxFk6+DBTVCdgJLnThtWyWo4njJYZK\nEQEaecHBhYyhYj7CrQPDaA0xqQKBgQDTdnVRKYO4lC/gtXsOYbRV8kFcG+cPJTyd\nwQ7JxzQXwJiHbkEZPCq1bz6IwiONVIrMjtw0E32NUOT8OxMFmP6HaRmEE5IZ02l4\nPl5qWadV90MXXDwNbWm8mZmBLxJ6EmO4+0OwiYqePeplLRxBqPg2dQgRjlE5LTth\nzZDg1UVvSQKBgQCH+TP6OlxXY87+zcIXcUMUgf3a/O/y3JISmqUQgE7QwKoGsh14\nV9JJsmrKKxnoOdlTzrQtQpbsiW7tYrCxkJQCvZFAV7mYpL0EwVTECQKCnKcbOQXw\n0hBvzxMDiRRWcZaiu5gILEsYMMEVhEMuB/q0q0y5LMNZm6O96zNE5yW7IQKBgHWt\nm7PdgaRpmx2vPeZZq1aGBhwRw0m7hPHk/J6ZFGqBA4mYdXBYeJu4x2CnSRAQHS9h\nsvECL5ZKtPgbpUFpVc+jQMf8pxyZg7V5+xo8DHmCbAmF0BJHCQVFl4yGlLFNJOiJ\nfQdZEt2JCQVfZ75NY8/K8F4DHk+LSgYMSycoMR0BAoGAGIIhpZBe2dDdcwfBbMPb\nM7eqhmSlTLcuOa1YdLIjZWeF3JfyApXbzLTEz7S8QjS1ciaBQGiRzZ8/q4aRfJZl\nXnO0cVIMpkrKvBX+zxIIJFXNxvT+9yBWd9lrtRYfUGJFcFM0JTZMm4nlSQr45U0/\nrUF8qZ/TFkYVm0pCl7BPnBw=\n-----END PRIVATE KEY-----\n",
+          "client_email": "firebase-adminsdk@demo-project.iam.gserviceaccount.com",
+          "client_id": "000000000000000000000",
+          "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+          "token_uri": "https://oauth2.googleapis.com/token",
+          "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+          "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk%40demo-project.iam.gserviceaccount.com"
+        }' > firebaseServiceKey.json
+    
+    - name: Cache Firebase Emulators
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/firebase/emulators
+        key: ${{ runner.os }}-firebase-emulators-${{ hashFiles('firebase.json') }}
+        restore-keys: |
+          ${{ runner.os }}-firebase-emulators-
+    
+    - name: Modify jest.setup.js to use IPv4 addresses
+      run: |
+        # Update jest.setup.js to use 127.0.0.1 instead of localhost
+        sed -i 's/process.env.FIRESTORE_EMULATOR_HOST = .*/process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";/g' jest.setup.js
+        sed -i 's/process.env.FIREBASE_AUTH_EMULATOR_HOST = .*/process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";/g' jest.setup.js
+        sed -i 's/process.env.FIREBASE_STORAGE_EMULATOR_HOST = .*/process.env.FIREBASE_STORAGE_EMULATOR_HOST = "127.0.0.1:9199";/g' jest.setup.js
+        
+        # Modify the test user creation to be more reliable
+        sed -i 's/beforeAll(async () => {/beforeAll(async () => {\n  jest.setTimeout(30000);/g' jest.setup.js
+        
+        # Print the modified file for debugging
+        echo "Modified jest.setup.js:"
+        cat jest.setup.js | grep -A 3 "Connect to emulator"
+    
+    - name: Start Firebase Emulators and Run Tests
+      run: |
+        # Start the emulators in the background
+        firebase emulators:start --project demo-project > emulator.log 2>&1 &
+        EMULATOR_PID=$!
+        
+        # Give emulators time to start up
+        echo "Waiting for emulators to start..."
+        sleep 20
+        
+        # Check if emulators are running by checking ports
+        echo "Checking if Auth emulator is running on port 9099..."
+        if nc -z 127.0.0.1 9099; then
+          echo "Auth emulator is running"
+        else
+          echo "Auth emulator is not running"
+          cat emulator.log
+          exit 1
+        fi
+        
+        echo "Checking if Firestore emulator is running on port 8080..."
+        if nc -z 127.0.0.1 8080; then
+          echo "Firestore emulator is running"
+        else
+          echo "Firestore emulator is not running"
+          cat emulator.log
+          exit 1
+        fi
+        
+        echo "Checking if Storage emulator is running on port 9199..."
+        if nc -z 127.0.0.1 9199; then
+          echo "Storage emulator is running"
+        else
+          echo "Storage emulator is not running"
+          cat emulator.log
+          exit 1
+        fi
+        
+        # Create test user directly in the Auth emulator
+        echo "Creating test user directly in Auth emulator..."
+        curl -X POST "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/projects/demo-project/accounts" \
+          -H "Content-Type: application/json" \
+          --data-binary '{"localId":"testid","email":"test@example.com","password":"password123","emailVerified":true}'
+        
+        # Set environment variables for tests
+        export USE_FIREBASE_EMULATOR=true
+        export SERVICE_ACCOUNT_KEY_PATH="./firebaseServiceKey.json"
+        export FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
+        export FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
+        export FIREBASE_STORAGE_EMULATOR_HOST="127.0.0.1:9199"
+        
+        # Run build
+        npm run build --if-present
+        
+        # Run all tests with increased timeout
+        npx jest --testTimeout=30000 --forceExit
+        
+        # Store the test result
+        TEST_RESULT=$?
+        
+        # Kill the emulator process
+        kill $EMULATOR_PID
+        
+        # Return the test result
+        exit $TEST_RESULT

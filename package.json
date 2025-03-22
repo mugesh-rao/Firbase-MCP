@@ -1,0 +1,71 @@
+{
+  "name": "@gannonh/firebase-mcp",
+  "version": "1.0.0",
+  "description": "Firebase MCP server for interacting with Firebase services through the Model Context Protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "firebase-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:emulator": "USE_FIREBASE_EMULATOR=true jest",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": ["./jest.setup.js"],
+    "testMatch": [
+      "**/__tests__/**/*.ts?(x)",
+      "**/?(*.)+(spec|test).ts?(x)"
+    ]
+  },
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "firebase-admin": "^13.2.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.13.10",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.2.6",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "firebase",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "claude",
+    "anthropic",
+    "firestore",
+    "storage",
+    "authentication"
+  ],
+  "author": "Gannon Hall (https://github.com/gannonh)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gannonh/firebase-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gannonh/firebase-mcp/issues"
+  },
+  "homepage": "https://github.com/gannonh/firebase-mcp#readme"
+}
